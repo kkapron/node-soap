@@ -18,12 +18,15 @@ var requestContext = {
   //set these two within each test
   expectedRequest:null,
   responseToSend:null,
+  doneHandler:null,
   requestHandler:function(req, res){
     var chunks = [];
     req.on('data', function(chunk){
       chunks.push(chunk);
     });
     req.on('end', function(){
+      if(!requestContext.expectedRequest)return res.end(requestContext.responseToSend);
+      if(!requestContext.responseToSend)return requestContext.doneHandler();
       assert.equal(chunks.join(''), requestContext.expectedRequest);
       res.end(requestContext.responseToSend);
       requestContext.expectedRequest = null;
@@ -41,6 +44,11 @@ module.exports = {
       done();
     });
   },
+  beforeEach:function(){
+    requestContext.expectedRequest = null;
+    requestContext.responseToSend = null;
+    requestContext.doneHandler = null;
+  },
   after:function(){
     server.close();
   },
@@ -52,34 +60,59 @@ tests.forEach(function(test){
   var name = nameParts[1].replace(/_/g, ' ');
   var methodName = nameParts[0];
   var wsdl = path.resolve(test, 'soap.wsdl');
-  var requestJSON = require(path.resolve(test, 'request.json'));
-  var requestXML = ""+fs.readFileSync(path.resolve(test, 'request.xml'));
-  var responseJSON = null;
-  if (fs.existsSync(path.resolve(test, 'response.json'))) {
-    responseJSON = require(path.resolve(test, 'response.json'));
-  } else {
-    // assume testing error condition if response.json not found
-    responseJSON = require(path.resolve(test, 'error_response.json'));
-  }
-  var responseXML = ""+fs.readFileSync(path.resolve(test, 'response.xml'));
+  var requestJSON = path.resolve(test, 'request.json');
+  var requestXML = path.resolve(test, 'request.xml');
+  var responseJSON = path.resolve(test, 'response.json');
+  var responseJSONError = path.resolve(test, 'error_response.json');
+  var responseXML = path.resolve(test, 'response.xml');
+  var options = path.resolve(test, 'options.json');
+  var wsdlOptionsFile = path.resolve(test, 'wsdl_options.json');
+  var wsdlOptions = {};
 
-  generateTest(name, methodName, wsdl, requestXML, requestJSON, responseXML, responseJSON);
+  //response JSON is optional
+  if (fs.existsSync(responseJSON))responseJSON = require(responseJSON);
+  else if(fs.existsSync(responseJSONError))responseJSON = require(responseJSONError);
+  else responseJSON = null;
+
+  //requestXML is optional
+  if(fs.existsSync(requestXML))requestXML = ""+fs.readFileSync(requestXML);
+  else requestXML = null;
+
+  //responseXML is optional
+  if(fs.existsSync(responseXML))responseXML = ""+fs.readFileSync(responseXML);
+  else responseXML = null;
+
+  //responseJSON is required as node-soap will expect a request object anyway
+  requestJSON = require(requestJSON);
+
+  //options is optional
+  if (fs.existsSync(options))options = require(options);
+  else options = {};
+
+  //wsdlOptions is optional
+  if(fs.existsSync(wsdlOptionsFile)) wsdlOptions = require(wsdlOptionsFile);
+  else wsdlOptions = {};
+
+  generateTest(name, methodName, wsdl, requestXML, requestJSON, responseXML, responseJSON, wsdlOptions, options);
 });
 
-function generateTest(name, methodName, wsdlPath, requestXML, requestJSON, responseXML, responseJSON){
+function generateTest(name, methodName, wsdlPath, requestXML, requestJSON, responseXML, responseJSON, wsdlOptions, options){
   suite[name] = function(done){
-    requestContext.expectedRequest = requestXML;
-    requestContext.responseToSend = responseXML;
-    soap.createClient(wsdlPath, function(err, client){
+    if(requestXML)requestContext.expectedRequest = requestXML;
+    if(responseXML)requestContext.responseToSend = responseXML;
+    requestContext.doneHandler = done;
+    soap.createClient(wsdlPath, wsdlOptions, function(err, client){
       client[methodName](requestJSON, function(err, json, body){
-        if (err) {
-          assert.deepEqual(err.root, responseJSON);
-        } else {
-          assert.deepEqual(json, responseJSON);
+        if(requestJSON){
+          if (err) {
+            assert.deepEqual(err.root, responseJSON);
+          } else {
+            // assert.deepEqual(json, responseJSON);
+            assert.equal(JSON.stringify(json), JSON.stringify(responseJSON));
+          }
         }
-        assert.deepEqual(body, responseXML);
         done();
-      });
+      }, options);
     }, 'http://localhost:'+port+'/Message/Message.dll?Handler=Default');
   };
 }

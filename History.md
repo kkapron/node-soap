@@ -1,9 +1,56 @@
+0.5.1 / 2014-07-11
+=================
+* Enhancement: Add "defaults" parameter to BasicAuthSecurity's constructor
+* Enhancement:  Added possibility to set a custom `valueKey` for the parsed values from XML SOAP Response
+* Fix:  don't append port 80 to Host if not needed
+* Fix:  Remove possible existing BOM characters from XML String before passing it to `WSDL#_fromXML()` and parsing it.
+* Fix:  Handling nil attributes in response xml
+
+0.5.0 / 2014-07-11
+=================
+* Enhancement: Allowing namespace prefixes to be ignored via config.
+* Enhancement: wsdl should handle more types
+* Fix: Handle defined messages ending with "Response", "Out", or "Output"
+* Fix: Adding default attributesKey to server and allowing the property to be configurable fixing issue #406
+* Fix: Remove extra characters before and after soap envelope
+* Fix: Allow operations to not have definitions
+* Fix: Ignore unknown elements
+* Fix: Keep ns from top-level
+* Fix: Check status code of invocation response
+
+0.4.7 / 2014-06-16
+=================
+* Allow request elements to have both content and attributes.
+
+0.4.6 / 2014-06-16
+=================
+* Fix for the `elementFormDefault` functionality.
+* Fix determining the namespace for complex elements.
+* Add support for the `elementFormDefault` schema attribute.
+* Fixing duplicate code which had gotten introduced because of a merge.
+* Added the ability to specify elements in a $value attribute for complex types.
+* Allowing the property name "attributes" to be configurable.
+* Fix for andling object arrays.
+* Fix for WSDL and Schema interaction.
+* Allowing response.xml to be optional in tests.
+* Allowing request.xml and response.json to be optional for tests.
+* Fix for adding an undefined XML namespace.
+* Added some documentation on options object when calling createClient.
+* Fix for namespaces in headers not being added appropriately.
+
+0.4.5 / 2014-05-13
+=================
+* Fixed: Unspecified binding style defaults to 'document' (#346, #208)
+* Fixed: WSDL parse errors bubble up (#344)
+* Fixed: AssertionError: Invalid child type when WSDL contains imports (#322, #337)
+* Fixed: TargetNamespace not loaded when import in schema (#327, #325)
+
 0.4.4 / 2014-04-16
 =================
 * Added namespace prefixes to SOAP headers. #307
 * Provided more documentation around security protocols in the README. #321
 * Added lodash. #321
-* Added a default parameter to ClientSSLSecurity. #321
+* Added a deefault parameter to ClientSSLSecurity. #321
 * Fix to reset the generated namespace number. #308
 * Fixed maximum callstack errors on certain responses. #257
 

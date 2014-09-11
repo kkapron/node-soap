@@ -20,7 +20,7 @@ Install with [npm](http://github.com/isaacs/npm):
 ```
 ## Module
 
-### soap.createClient(url, callback) - create a new SOAP client from a WSDL url. Also supports a local filesystem path.
+### soap.createClient(url[, options], callback) - create a new SOAP client from a WSDL url. Also supports a local filesystem path.
 
 ``` javascript
   var soap = require('soap');
@@ -32,6 +32,8 @@ Install with [npm](http://github.com/isaacs/npm):
       });
   });
 ```
+
+Within the options object you may provide an `endpoint` property in case you want to override the SOAP service's host specified in the `.wsdl` file.
 
 ### soap.listen(*server*, *path*, *services*, *wsdl*) - create a new SOAP server that listens on *path* and provides *services*.
 *wsdl* is an xml string that defines the service.
@@ -159,7 +161,7 @@ as default request options to the constructor:
 ####WSSecurity
 
 ``` javascript
-  client.setSecurity(new WSSecurity('username', 'password'))
+  client.setSecurity(new soap.WSSecurity('username', 'password'))
 ```
 
 ### Client.*method*(args, callback) - call *method* on the SOAP service.
@@ -205,6 +207,118 @@ WSSecurity implements WS-Security.  UsernameToken and PasswordText/PasswordDiges
   new WSSecurity(username, password, passwordType)
     //'PasswordDigest' or 'PasswordText' default is PasswordText
 ```
+
+## Handling XML Attributes and Value (wsdlOptions).
+Sometimes it is necessary to override the default behaviour of `node-soap` in order to deal with the special requirements
+of your code base or a third library you use. Therefore you can use the `wsdlOptions` Object, which is passed in the
+`#createClient()` method and could have any (or all) of the following contents:
+```javascript
+var wsdlOptions = {
+  attributesKey: 'theAttrs',
+  valueKey: 'theVal'
+}
+```
+If nothing (or an empty Object `{}`) is passed to the `#createClient()` method, the `node-soap` defaults (`attributesKey: 'attributes'`
+ and `valueKey: '$value'`) are used.
+
+###Overriding the `value` key
+By default, `node-soap` uses `$value` as key for any parsed XML value which may interfere with your other code as it
+could be some reserved word, or the `$` in general cannot be used for a key to start with.
+
+You can define your own `valueKey` by passing it in the `wsdl_options` to the createClient call like so:
+```javascript
+var wsdlOptions = {
+  valueKey: 'theVal'
+};
+
+soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', wsdlOptions, function (err, client) {
+  // your code
+});
+```
+
+###Overriding the `attributes` key
+You can achieve attributes like:
+``` xml
+<parentnode>
+  <childnode name="childsname">
+  </childnode>
+</parentnode>
+```
+By attaching an attributes object to a node.
+``` javascript
+{
+  parentnode: {
+    childnode: {
+      attributes: {
+        name: 'childsname'
+      }
+    }
+  }
+}
+```
+However, "attributes" may be a reserved key for some systems that actually want a node
+```xml
+<attributes>
+</attributes>
+```
+
+In this case you can configure the attributes key in the `wsdlOptions` like so.
+```javascript
+var wsdlOptions = {
+  attributesKey: '$attributes'
+};
+
+soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', wsdlOptions, function (err, client) {
+  client.*method*({
+    parentnode: {
+      childnode: {
+        $attributes: {
+          name: 'childsname'
+        }
+      }
+    }
+  });
+});
+```
+
+## Handling "ignored" namespaces
+If an Element in a `schema` definition depends on an Element which is present in the same namespace, normally the `tns:`
+namespace prefix is used to identify this Element. This is not much of a problem as long as you have just one `schema` defined
+(inline or in a separate file). If there are more `schema` files, the `tns:` in the generated `soap` file resolved mostly to the parent `wsdl` file,
+ which was obviously wrong.
+ 
+ `node-soap` now handles namespace prefixes which shouldn't be resolved (because it's not necessary) as so called `ignoredNamespaces`
+ which default to an Array of 3 Strings (`['tns', 'targetNamespace', 'typedNamespace']`).
+ 
+ If this is not sufficient for your purpose you can easily add more namespace prefixes to this Array, or override it in its entirety
+ by passing an `ignoredNamespaces` object within the `options` you pass in `soap.createClient()` method.
+  
+ A simple `ignoredNamespaces` object, which only adds certain namespaces could look like this:
+ ```
+ var options = {
+   ignoredNamespaces: {
+     namespaces: ['namespaceToIgnore', 'someOtherNamespace']
+   }
+ }
+ ```
+ This would extend the `ignoredNamespaces` of the `WSDL` processor to `['tns', 'targetNamespace', 'typedNamespace', 'namespaceToIgnore', 'someOtherNamespace']`.
+ 
+ If you want to override the default ignored namespaces you would simply pass the following `ignoredNamespaces` object within the `options`:
+ ```
+ var options = {
+     ignoredNamespaces: {
+       namespaces: ['namespaceToIgnore', 'someOtherNamespace'],
+       override: true
+     }
+   }
+ ```
+ This would override the default `ignoredNamespaces` of the `WSDL` processor to `['namespaceToIgnore', 'someOtherNamespace']`. (This shouldn't be necessary, anyways).
+
+## Contributors
+
+ * Author: [Vinay Pulim](https://github.com/vpulim)
+ * Lead Maintainer: [Joe Spencer](https://github.com/jsdevel)
+ * [All Contributors](https://github.com/vpulim/node-soap/graphs/contributors)
 
 [downloads-image]: http://img.shields.io/npm/dm/soap.svg
 [npm-url]: https://npmjs.org/package/soap

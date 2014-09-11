@@ -12,7 +12,7 @@ describe('SOAP Client', function() {
       done();
     });
   });
-  
+
   it('should add and clear soap headers', function(done) {
     soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
       assert.ok(client);
@@ -41,13 +41,23 @@ describe('SOAP Client', function() {
     });
     assert(!called);
   });
-  
-  describe('Extra headers in request and last response', function() {
+
+  it('should set binding style to "document" by default if not explicitly set in WSDL, per SOAP spec', function (done) {
+    soap.createClient(__dirname+'/wsdl/binding_document.wsdl', function(err, client) {
+      assert.ok(client);
+      assert.ok(!err);
+
+      assert.ok(client.wsdl.definitions.bindings.mySoapBinding.style === 'document');
+      done();
+    });
+  });
+
+  describe('Headers in request and last response', function() {
     var server = null;
     var hostname = '127.0.0.1';
     var port = 15099;
     var baseUrl = 'http://' + hostname + ":" + port;
-    
+
     before(function(done) {
       server = http.createServer(function (req, res) {
         var status_value = (req.headers["test-header"] === 'test') ? 'pass' : 'fail';
@@ -64,81 +74,124 @@ describe('SOAP Client', function() {
       server = null;
       done();
     });
-    
-    it('should have the correct extra header in the request', function(done) {
+
+    it('should append `:' + port + '` to the Host header on for a request to a service on that port', function(done) {
       soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
         assert.ok(client);
         assert.ok(!err);
-        
+
         client.MyOperation({}, function(err, result) {
-          assert.ok(result);
-          assert.ok(client.lastResponseHeaders);
-          assert.equal(client.lastResponseHeaders.status, 'pass');
-          
+          assert.notEqual(client.lastRequestHeaders.Host.indexOf(':' + port), -1);
+
           done();
         }, null, {"test-header": 'test'});
       }, baseUrl);
     });
-    
+
+    it('should not append `:80` to the Host header on for a request to a service without a port explicitly defined', function(done) {
+      soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
+        assert.ok(client);
+        assert.ok(!err);
+
+        client.MyOperation({}, function(err, result) {
+          assert.equal(client.lastRequestHeaders.Host.indexOf(':80'), -1);
+
+          done();
+        }, null, {"test-header": 'test'});
+      }, 'http://127.0.0.1');
+    });
+
+    it('should have the correct extra header in the request', function(done) {
+      soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
+        assert.ok(client);
+        assert.ok(!err);
+
+        client.MyOperation({}, function(err, result) {
+          assert.ok(result);
+          assert.ok(client.lastResponseHeaders);
+          assert.equal(client.lastResponseHeaders.status, 'pass');
+
+          done();
+        }, null, {"test-header": 'test'});
+      }, baseUrl);
+    });
+
     it('should have the wrong extra header in the request', function(done) {
       soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
         assert.ok(client);
         assert.ok(!err);
-        
+
         client.MyOperation({}, function(err, result) {
           assert.ok(result);
           assert.ok(client.lastResponseHeaders);
           assert.equal(client.lastResponseHeaders.status, 'fail');
-          
+
           done();
         }, null, {"test-header": 'testBad'});
       }, baseUrl);
     });
-    
+
     it('should have lastResponse and lastResponseHeaders after the call', function(done) {
       soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
         assert.ok(client);
         assert.ok(!err);
-        
+
         client.MyOperation({}, function(err, result) {
           assert.ok(result);
           assert.ok(client.lastResponse);
           assert.ok(client.lastResponseHeaders);
-          
+
           done();
         }, null, {"test-header": 'test'});
       }, baseUrl);
     });
   });
 
-  
   it('should add soap headers', function (done) {
-        soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', function (err, client) {
-            assert.ok(client);
-            assert.ok(!client.getSoapHeaders());
-            var soapheader = {
-              "esnext": false,
-              "moz": true,
-              "boss": true,
-              "node": true,
-              "validthis": true,
-              "globals": {
-                "EventEmitter": true,
-                "Promise": true
-              }
-            };
-            client.addSoapHeader(soapheader);
-            assert.ok(client.getSoapHeaders()[0] === '<esnext>false</esnext><moz>true</moz><boss>true</boss><node>true</node><validthis>true</validthis><globals><EventEmitter>true</EventEmitter><Promise>true</Promise></globals>');
-            done();
-          });
+    soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', function (err, client) {
+        assert.ok(client);
+        assert.ok(!client.getSoapHeaders());
+        var soapheader = {
+          "esnext": false,
+          "moz": true,
+          "boss": true,
+          "node": true,
+          "validthis": true,
+          "globals": {
+            "EventEmitter": true,
+            "Promise": true
+          }
+        };
+
+        client.addSoapHeader(soapheader);
+
+        assert.ok(client.getSoapHeaders()[0] === '<esnext>false</esnext><moz>true</moz><boss>true</boss><node>true</node><validthis>true</validthis><globals><EventEmitter>true</EventEmitter><Promise>true</Promise></globals>');
+        done();
       });
-  
+  });
+
+  it('should add soap headers with a namespace', function(done) {
+    soap.createClient(__dirname+'/wsdl/default_namespace.wsdl', function(err, client) {
+      assert.ok(client);
+      assert.ok(!client.getSoapHeaders());
+
+      client.addSoapHeader({header1: 'content'}, null, null, 'http://example.com');
+
+      assert.ok(client.getSoapHeaders().length === 1);
+      assert.ok(client.getSoapHeaders()[0] === '<header1 xmlns="http://example.com">content</header1>');
+
+      client.clearSoapHeaders();
+      assert.ok(!client.getSoapHeaders());
+      done();
+    });
+  });
+
   describe('Namespace number', function() {
     var server = null;
     var hostname = '127.0.0.1';
     var port = 15099;
     var baseUrl = 'http://' + hostname + ":" + port;
-    
+
     before(function(done) {
       server = http.createServer(function (req, res) {
         res.statusCode = 200;
@@ -152,11 +205,11 @@ describe('SOAP Client', function() {
       server = null;
       done();
     });
-    
+
     it('should reset the namespace number', function (done) {
       soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', function (err, client) {
         assert.ok(client);
-        
+
         var data = {
           attributes: {
             xsi_type: {
@@ -165,13 +218,13 @@ describe('SOAP Client', function() {
             }
           }
         };
-        
+
         var message = '<Request xsi:type="ns1:Ty" xmlns:ns1="xmlnsTy" xmlns="http://www.example.com/v1"></Request>';
         client.MyOperation(data, function(err, result) {
           assert.ok(client.lastRequest);
           assert.ok(client.lastMessage);
           assert.equal(client.lastMessage, message);
-          
+
           delete data.attributes.xsi_type.namespace;
           client.MyOperation(data, function(err, result) {
             assert.ok(client.lastRequest);
@@ -180,6 +233,37 @@ describe('SOAP Client', function() {
 
             done();
           });
+        });
+      }, baseUrl);
+    });
+  });
+
+  describe('Handle non-success http status codes', function() {
+    var server = null;
+    var hostname = '127.0.0.1';
+    var port = 15099;
+    var baseUrl = 'http://' + hostname + ":" + port;
+
+    before(function(done) {
+      server = http.createServer(function (req, res) {
+        res.statusCode = 401;
+        res.write(JSON.stringify({tempResponse: "temp"}), 'utf8');
+        res.end();
+      }).listen(port, hostname, done);
+    });
+
+    after(function(done) {
+      server.close();
+      server = null;
+      done();
+    });
+
+    it('should return an error', function (done) {
+      soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', function (err, client) {
+        client.MyOperation({}, function(err, result) {
+          assert.ok(err);
+          assert.ok(err.message.indexOf('Invalid response: 401') === 0);
+          done();
         });
       }, baseUrl);
     });
